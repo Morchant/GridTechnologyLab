@@ -1,0 +1,51 @@
+composite Main
+{
+    graph
+      stream<float32 number> FileReader = FileSource() 
+      {
+	      param
+  				file: getSubmissionTimeValue("in");
+  				format: csv;
+	   }
+     
+     stream <float32 number> Sorted = Sort(FileReader) 
+     {
+    		window
+    			FileReader: tumbling, punct();
+    		
+    		param
+    			sortBy: number;
+          order: descending;
+		}
+    
+    stream <float32 number> Filtered = Custom(Sorted)
+    {
+      logic
+          state :
+          {
+              mutable int32 counter = 0;
+              mutable int32 N = getSubmissionTimeValue("N");
+              mutable list<float32> uniqueNumbers;
+          }
+          onTuple Sorted:
+          {
+              if (counter < N)
+              {
+                  if (!(number in uniqueNumbers))
+                  {
+                     uniqueNumbers = insert(uniqueNumbers, number, counter); 
+                     counter++;
+                     submit(Sorted, Filtered);
+                  }
+              }    
+          }
+    }
+    
+    () as FileWriter = FileSink(Filtered)
+    {
+        param
+            file : getSubmissionTimeValue("out");
+            append : false;
+            quoteStrings : false;
+    } 
+}
